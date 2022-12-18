@@ -1,0 +1,363 @@
+## lorax template file: cleanup for the ramdisk (runtime image)
+<%page args="libdir, branding, root"/>
+
+## remove the sources
+remove usr/share/i18n
+
+## not required packages installed as dependencies
+## perl is needed on s390x
+## perl needed for powerpc-utils
+## perl is needed by /usr/bin/rxe_cfg from libibverbs
+
+## no sound support, thanks
+removepkg flac-libs libsndfile pipewire pulseaudio* rtkit sound-theme-freedesktop wireplumber*
+## we don't create new initramfs/bootloader conf inside anaconda
+## (that happens inside the target system after we install dracut/grubby)
+removepkg dracut-network grubby anaconda-dracut
+## In order to execute the /usr move on upgrades we need convertfs from dracut
+## We also need dracut-shutdown.service and dracut-initramfs-restore to reboot
+removefrom dracut --allbut /usr/lib/dracut/modules.d/30convertfs/convertfs.sh \
+                  /usr/lib/dracut/modules.d/99base/dracut-lib.sh \
+                  /usr/lib/systemd/* /usr/lib/dracut/modules.d/98dracut-systemd/*.service \
+                  /usr/lib/dracut/dracut-initramfs-restore
+## we don't run SELinux (not in enforcing, anyway)
+removepkg selinux-policy libselinux-utils
+
+## selinux checks for the /etc/selinux/config file's existance
+## The removepkg above removes it, create an empty one. See rhbz#1243168
+append etc/selinux/config ""
+
+## keep enough of shadow-utils to create accounts
+removefrom shadow-utils --allbut /usr/bin/chage /usr/sbin/chpasswd \
+                        /usr/sbin/groupadd /usr/sbin/useradd
+
+## no services to turn on/off (keep the /etc/init.d link though)
+removefrom initscripts /usr/sbin/* /usr/share/locale/* /usr/share/doc/* /usr/share/man/*
+
+## no storage device monitoring
+removepkg device-mapper-event
+## logrotate isn't useful in anaconda
+remove /etc/logrotate.d
+## anaconda needs this to do media check
+removefrom isomd5sum --allbut /usr/bin/checkisomd5
+
+## there's no need for a bunch of zsh files without zsh,
+## systemd-analyze is quite large and not essential
+removefrom systemd /usr/bin/systemd-analyze /usr/share/zsh/site-functions/*
+
+## we only need syslinux to make the installer image bootable, we don't
+## run anything from it that uses mtools, and that's the only thing
+## that pulls in glibc-gconv-extra
+removepkg mtools glibc-gconv-extra
+
+## various other things we remove to save space
+removepkg diffutils file
+removepkg libasyncns
+removepkg libtiff
+removepkg lvm2-libs
+removepkg mobile-broadband-provider-info
+removepkg rmt rpcbind squashfs-tools
+removepkg tigervnc-license xml-common
+removepkg mkfontscale fonttosfnt
+removepkg xorg-x11-server-common
+# do not remove this, required for ppc64le and s390x !!!
+removepkg ncurses
+
+## other removals
+remove /home /media /opt /srv /tmp/*
+remove /usr/etc /usr/games /usr/local /usr/tmp
+remove /usr/share/doc /usr/share/info /usr/share/man /usr/share/gnome
+remove /usr/share/mime/application /usr/share/mime/audio /usr/share/mime/image
+remove /usr/share/mime/inode /usr/share/mime/message /usr/share/mime/model
+remove /usr/share/mime/multipart /usr/share/mime/packages /usr/share/mime/text
+remove /usr/share/mime/video /usr/share/mime/x-content /usr/share/mime/x-epoc
+remove /var/db /var/games /var/tmp /var/yp /var/nis /var/opt /var/local
+remove /var/mail /var/spool /var/preserve /var/report
+remove /usr/lib/sysimage/rpm/* /var/lib/rpm/* /var/lib/yum /var/lib/dnf
+## clean up the files created by various '> /dev/null's
+remove /dev/*
+
+## icons cache
+remove /usr/share/icons/*/icon-theme.cache
+
+## clean up kernel modules
+removekmod sound drivers/media drivers/hwmon drivers/iio \
+           net/atm net/bluetooth net/sched net/sctp \
+           net/rds net/l2tp net/decnet net/netfilter net/ipv4 net/ipv6 \
+           drivers/watchdog drivers/rtc drivers/input/joystick \
+           drivers/bluetooth drivers/edac drivers/staging \
+           drivers/usb/serial drivers/usb/host drivers/usb/misc \
+           fs/ocfs2 fs/ceph fs/nfsd fs/ubifs fs/nilfs2 \
+           arch/x86/kvm
+## Need to keep virtio_console.ko and ipmi stuff in drivers/char
+## Also keep virtio-rng so that the installer can get sufficient randomness for
+## LUKS setup. As of 2020-09 this is not built as a module, but keep it in here
+## in case that changes again
+removekmod drivers/char --allbut virtio_console hw_random \
+                                  virtio-rng ipmi hmcdrv
+removekmod drivers/hid --allbut hid-logitech-dj hid-logitech-hidpp
+
+## As of 2020-09 most of this are built-in too, but again, keep them listed
+removekmod drivers/video --allbut hyperv_fb syscopyarea sysfillrect sysimgblt fb_sys_fops
+remove lib/modules/*/{build,source,*.map}
+## NOTE: depmod gets re-run after cleanup finishes
+
+## remove unused themes, theme engines, icons, etc.
+removefrom gtk3 /usr/${libdir}/gtk-3.0/*/printbackends/*
+removefrom gtk3 /usr/share/themes/*
+
+## filesystem tools
+removefrom e2fsprogs /usr/share/locale/*
+removefrom xfsprogs /usr/share/locale/* /usr/share/doc/* /usr/share/man/*
+removefrom xfsdump --allbut /usr/sbin/*
+
+## other package specific removals
+removefrom gsettings-desktop-schemas /usr/share/locale/*
+removefrom NetworkManager-libnm /usr/share/locale/*/NetworkManager.mo
+removefrom nm-connection-editor /usr/share/applications/*
+removefrom atk /usr/share/locale/*
+removefrom audit /etc/* /usr/sbin/auditctl /usr/sbin/aureport
+removefrom audit /usr/sbin/ausearch /usr/sbin/autrace /usr/bin/*
+removefrom audit-libs /etc/* /usr/${libdir}/libauparse*
+removefrom bash /etc/* /usr/bin/bashbug* /usr/share/*
+removefrom bind-utils /usr/bin/host /usr/bin/nsupdate
+removefrom bitmap-fangsongti-fonts /usr/share/fonts/*
+removefrom ca-certificates /etc/pki/java/*
+removefrom ca-certificates /etc/pki/tls/certs/ca-bundle.trust.crt
+removefrom coreutils /usr/bin/link /usr/bin/nice /usr/bin/stty /usr/bin/unlink
+removefrom coreutils /usr/bin/[ /usr/bin/base64 /usr/bin/chcon
+removefrom coreutils /usr/bin/cksum /usr/bin/csplit
+removefrom coreutils /usr/bin/dir /usr/bin/dircolors
+removefrom coreutils /usr/bin/expand /usr/bin/factor
+removefrom coreutils /usr/bin/fold /usr/bin/groups /usr/bin/hostid
+removefrom coreutils /usr/bin/install /usr/bin/join /usr/bin/logname
+removefrom coreutils /usr/bin/mkfifo /usr/bin/nl /usr/bin/nohup /usr/bin/nproc
+removefrom coreutils /usr/bin/pathchk
+removefrom coreutils /usr/bin/pinky /usr/bin/pr /usr/bin/printenv
+removefrom coreutils /usr/bin/printf /usr/bin/ptx /usr/bin/runcon
+removefrom coreutils /usr/bin/sha224sum /usr/bin/sha384sum
+removefrom coreutils /usr/bin/sha512sum /usr/bin/shuf /usr/bin/stat
+removefrom coreutils /usr/bin/stdbuf /usr/bin/sum /usr/bin/test
+removefrom coreutils /usr/bin/timeout /usr/bin/truncate /usr/bin/tsort
+removefrom coreutils /usr/bin/unexpand /usr/bin/users /usr/bin/vdir
+removefrom coreutils /usr/bin/who /usr/bin/whoami /usr/bin/yes
+removefrom coreutils-common /etc/* /usr/share/*
+removefrom cpio /usr/share/*
+removefrom cracklib /usr/sbin/*
+removefrom cracklib-dicts /usr/${libdir}/* /usr/sbin/*
+removefrom cryptsetup /usr/share/*
+removefrom cryptsetup-libs /usr/share/locale/*
+removefrom cyrus-sasl-lib /usr/sbin/* /usr/bin/*
+removefrom dbus-x11 /etc/X11/*
+removefrom dnf /usr/share/locale/*
+removefrom dump /etc/*
+removefrom elfutils-libelf /usr/share/locale/*
+removefrom expat /usr/bin/*
+removefrom fcoe-utils /usr/libexec/fcoe/dcbcheck.sh
+removefrom fcoe-utils /usr/libexec/fcoe/fcc.sh /usr/libexec/fcoe/fcoe-setup.sh
+removefrom fcoe-utils /usr/libexec/fcoe/fcoedump.sh /usr/sbin/fcnsq
+removefrom fcoe-utils /usr/sbin/fcoeadm /usr/sbin/fcping /usr/sbin/fcrls
+removefrom file-libs /usr/share/*
+removefrom findutils /usr/share/*
+removefrom fontconfig /usr/bin/*
+removefrom gawk /usr/libexec/* /usr/share/*
+removefrom gdb /usr/share/* /usr/include/*
+removefrom gdb-headless /usr/share/* /etc/gdbinit*
+removefrom gdisk /usr/share/*
+removefrom gdk-pixbuf2 /usr/share/locale*
+removefrom glib2 /usr/bin/* /usr/share/locale/*
+removefrom glibc /etc/gai.conf /etc/rpc
+removefrom glibc /${libdir}/libBrokenLocale*
+removefrom glibc /${libdir}/libanl*
+removefrom glibc /${libdir}/libnss_compat*
+# python-pyudev uses ctypes.util.find_library, which uses /sbin/ldconfig
+removefrom glibc /usr/libexec/* /usr/sbin/*
+removefrom glibc-common /usr/bin/gencat
+removefrom glibc-common /usr/bin/getent
+removefrom glibc-common /usr/bin/locale /usr/bin/sprof
+# NB: we keep /usr/bin/localedef so anaconda can inspect payload locale info
+removefrom glibc-common /usr/bin/tzselect
+removefrom glibc-common /usr/sbin/*
+removefrom gnutls /usr/share/locale/*
+removefrom google-noto-sans-cjk-ttc-fonts /usr/share/fonts/google-noto-cjk/NotoSansCJK-{Black,Bold,*Light,Medium,Thin}.ttc
+removefrom google-noto-sans-vf-fonts /usr/share/fonts/google-noto-vf/NotoSans-Italic-VF.ttf
+removefrom grep /etc/* /usr/share/locale/*
+removefrom gtk3 /usr/${libdir}/gtk-3.0/*
+removefrom guile22 /usr/${libdir}/guile/2.2/ccache*
+removefrom gzip /usr/bin/{gzexe,zcmp,zdiff,zegrep,zfgrep,zforce,zgrep,zless,zmore,znew}
+removefrom hwdata /usr/share/hwdata/oui.txt /usr/share/hwdata/pnp.ids
+removefrom iproute --allbut /usr/sbin/{ip,routef,routel,rtpr}
+removefrom kbd --allbut */bin/{dumpkeys,kbd_mode,loadkeys,setfont,unicode_*,chvt}
+removefrom less /etc/*
+removefrom libX11-common /usr/share/X11/XErrorDB
+removefrom libcanberra /usr/${libdir}/libcanberra-*
+removefrom libcanberra-gtk3 /usr/bin/*
+removefrom libcap /usr/sbin/*
+removefrom libconfig /usr/${libdir}/libconfig++*
+removefrom libgpg-error /usr/bin/* /usr/share/locale/*
+removefrom libibverbs /usr/${libdir}/libmlx4*
+removefrom libidn2 /usr/share/locale/*
+removefrom libnotify /usr/bin/*
+removefrom libsemanage /etc/selinux/*
+removefrom libstdc++ /usr/share/*
+removefrom libvorbis /usr/${libdir}/libvorbisenc.*
+removefrom libxml2 /usr/bin/*
+removefrom linux-firmware /usr/lib/firmware/dvb*
+removefrom linux-firmware /usr/lib/firmware/*_12mhz*
+removefrom linux-firmware /usr/lib/firmware/v4l*
+removefrom linux-firmware /usr/lib/firmware/brcm/BCM-*
+removefrom linux-firmware /usr/lib/firmware/ttusb-budget/dspbootcode.bin*
+removefrom linux-firmware /usr/lib/firmware/emi26/*
+removefrom linux-firmware /usr/lib/firmware/emi62/*
+removefrom linux-firmware /usr/lib/firmware/cpia2/*
+removefrom linux-firmware /usr/lib/firmware/dabusb/*
+removefrom linux-firmware /usr/lib/firmware/vicam/*
+removefrom linux-firmware /usr/lib/firmware/dsp56k/*
+removefrom linux-firmware /usr/lib/firmware/sun/*
+removefrom linux-firmware /usr/lib/firmware/av7110/*
+removefrom linux-firmware /usr/lib/firmware/usbdux*
+removefrom linux-firmware /usr/lib/firmware/f2255usb.bin*
+removefrom linux-firmware /usr/lib/firmware/lgs8g75.fw*
+removefrom linux-firmware /usr/lib/firmware/TDA7706*
+removefrom linux-firmware /usr/lib/firmware/tlg2300_firmware.bin*
+removefrom linux-firmware /usr/lib/firmware/s5p-mfc*
+removefrom linux-firmware /usr/lib/firmware/go7007/*
+removefrom linux-firmware /usr/lib/firmware/intel/IntcSST2.bin*
+removefrom linux-firmware /usr/lib/firmware/intel/fw_sst*
+removefrom linux-firmware /usr/lib/firmware/intel/dsp*
+removefrom linux-firmware /usr/lib/firmware/as102*
+removefrom linux-firmware /usr/lib/firmware/qcom/sdm845/*
+removefrom linux-firmware /usr/lib/firmware/qcom/sm8250/*
+removefrom linux-firmware /usr/lib/firmware/qcom/venus*/*
+removefrom linux-firmware /usr/lib/firmware/meson/vdec/*
+removefrom linux-firmware /usr/lib/firmware/mellanox/mlxsw_spectrum*
+%if basearch != "aarch64":
+    removefrom linux-firmware /usr/lib/firmware/dpaa2/*
+%endif
+removefrom lldpad /etc/*
+removefrom mdadm /etc/* /usr/lib/systemd/system/mdmonitor*
+## gallium-pipe stuff is for compute (opencl), not needed for video
+removefrom mesa-dri-drivers /usr/${libdir}/dri/*_video.so /usr/lib64/gallium-pipe/*
+removefrom mt-st /usr/sbin/*
+removefrom mtools /etc/*
+removefrom ncurses-libs /usr/${libdir}/libform*
+## libmenu.so is needed by lp_diag binary from ppc64-diag which is a PowerPC specific package
+%if basearch != "ppc64le":
+    removefrom ncurses-libs /usr/${libdir}/libmenu*
+%endif
+removefrom ncurses-libs /usr/${libdir}/libpanel.* /usr/${libdir}/libtic*
+removefrom net-tools */bin/netstat */sbin/ether-wake */sbin/ipmaddr
+removefrom net-tools */sbin/iptunnel */sbin/mii-diag */sbin/mii-tool
+removefrom net-tools */sbin/nameif */sbin/plipconfig */sbin/slattach
+removefrom net-tools /usr/share/locale/*
+removefrom nfs-utils /etc/nfsmount.conf
+removefrom nfs-utils /usr/lib/systemd/system/*
+removefrom nfs-utils /sbin/rpc.statd /usr/sbin/exportfs
+removefrom nfs-utils /usr/sbin/mountstats /usr/sbin/nfsiostat
+removefrom nfs-utils /usr/sbin/nfsstat /usr/sbin/rpc.gssd /usr/sbin/rpc.idmapd
+removefrom nfs-utils /usr/sbin/rpc.mountd /usr/sbin/rpc.nfsd
+removefrom nfs-utils /usr/sbin/rpcdebug
+removefrom nfs-utils /usr/sbin/showmount /usr/sbin/sm-notify
+removefrom nfs-utils /usr/sbin/start-statd /var/lib/nfs/etab
+removefrom nfs-utils /var/lib/nfs/rmtab /var/lib/nfs/statd/state
+removefrom nss-softokn /usr/${libdir}/nss/*
+removefrom openldap /etc/openldap/*
+removefrom openssh /usr/libexec/*
+removefrom openssh-clients /etc/ssh/* /usr/bin/ssh-*
+removefrom openssh-clients /usr/libexec/*
+removefrom openssh-server /etc/ssh/* /usr/libexec/openssh/sftp-server
+removefrom pam /usr/sbin/* /usr/share/locale/*
+removefrom policycoreutils /etc/* /usr/bin/* /usr/share/locale/*
+removefrom polkit /usr/bin/*
+removefrom popt /usr/share/locale/*
+removefrom procps-ng /usr/bin/free /usr/bin/pgrep /usr/bin/pkill
+removefrom procps-ng /usr/bin/pmap /usr/bin/pwdx /usr/bin/skill /usr/bin/slabtop
+removefrom procps-ng /usr/bin/snice /usr/bin/tload /usr/bin/uptime
+removefrom procps-ng /usr/bin/vmstat /usr/bin/w /usr/bin/watch
+removefrom psmisc /usr/share/locale/*
+removefrom python3-kickstart /usr/lib/python*/site-packages/pykickstart/locale/*
+removefrom readline /usr/${libdir}/libhistory*
+removefrom libreport /usr/share/locale/*
+removefrom rdma-core /etc/rdma/mlx4.conf
+removefrom rpm /usr/bin/* /usr/share/locale/*
+removefrom rsync /etc/*
+removefrom sed /usr/share/locale/*
+removefrom smartmontools /etc/* /usr/sbin/smartd
+removefrom smartmontools /usr/sbin/update-smart-drivedb
+removefrom smartmontools /usr/share/smartmontools/*
+removefrom tar /usr/share/locale/*
+removefrom usbutils /usr/bin/*
+removefrom util-linux --allbut \
+    /usr/bin/{chmem,eject,getopt,hexdump,login,lscpu,lsmem,lsblk} \
+    /etc/pam.d/login /etc/pam.d/remote \
+    /usr/sbin/{clock,fdisk,fsfreeze,fstrim,hwclock,nologin,sfdisk,swaplabel,wipefs,zramctl}
+removefrom util-linux-core --allbut \
+    /usr/bin/{dmesg,findmnt,flock,kill,logger,more,mount,mountpoint,umount} \
+    /etc/mtab \
+    /usr/sbin/{agetty,blkid,blockdev,fsck,losetup,mkswap,partx,swapoff,swapon}
+removefrom volume_key-libs /usr/share/locale/*
+removefrom wget /etc/* /usr/share/locale/*
+removefrom wpa_supplicant /usr/sbin/eapol_test
+removefrom xorg-x11-drv-intel /usr/${libdir}/libI*
+removefrom xorg-x11-drv-wacom /usr/bin/*
+removefrom yelp /usr/share/yelp/mathjax*
+
+%if branding.release:
+    removefrom ${branding.logos} /usr/share/plymouth/*
+    removefrom ${branding.logos} /etc/*
+    removefrom ${branding.logos} /usr/share/icons/{Bluecurve,oxygen}/*
+    removefrom ${branding.logos} /usr/share/{kde4,pixmaps}/*
+%endif
+
+## cleanup /boot/ leaving vmlinuz, and .*hmac files
+runcmd chroot ${root} find /boot \! -name "vmlinuz*" \
+                            -and \! -name ".vmlinuz*" \
+                            -and \! -name boot -delete
+
+## remove any broken links in /etc or /usr
+## (broken systemd service links lead to confusing noise at boot)
+## NOTE: not checking /var because we want to keep /var/run
+## NOTE: Excluding /etc/mtab which links to /proc/self/mounts for systemd
+runcmd chroot ${root} find -L /etc /usr -xdev -type l -and \! -name "mtab" \
+                -printf "removing broken symbolic link %p -> %l\n" -delete
+
+## Remove compiled python files, they are recreated as needed anyway
+runcmd find ${root} -name "*.pyo" -type f -delete
+runcmd find ${root} -name "*.pyc" -type f -delete
+
+## Clean up some of the mess pulled in by webkitgtk via yelp
+## libwebkit2gtk links to a handful of libraries in gstreamer and
+## gstreamer-plugins-base. Remove the rest of them.
+removefrom gstreamer1 --allbut /usr/${libdir}/libgstbase-1.0.* \
+                               /usr/${libdir}/libgstreamer-1.0.*
+removefrom gstreamer1-plugins-base --allbut \
+        /usr/${libdir}/libgst{allocators,app,audio,fft,gl,pbutils,tag,video}-1.0.*
+
+## We have enough geoip libraries, thanks
+removepkg geoclue2
+
+## And remove the packages that those extra libraries pulled in
+removepkg cdparanoia-libs opus libtheora libvisual flac-libs gsm avahi-glib avahi-libs \
+          ModemManager-glib
+
+## metacity requires libvorbis and libvorbisfile, but enc/dec are no longer needed
+removefrom libvorbis --allbut /usr/${libdir}/libvorbisfile.* /usr/${libdir}/libvorbis.*
+
+## Remove build-id links, they are used with debuginfo
+remove /usr/lib/.build-id
+
+## make the image more reproducible
+
+## make machine-id empty but present to avoid systemd populating /etc with
+## preset settings
+remove /etc/machine-id
+append /etc/machine-id ""
+## journalctl message catalog, non-deterministic
+remove /var/lib/systemd/catalog/database
+## non-reproducible caches
+remove /var/cache/ldconfig/aux-cache
+remove /etc/pki/ca-trust/extracted/java/cacerts
+
+## sort groups
+runcmd chroot ${root} /bin/sh -c "LC_ALL=C sort /etc/group > /etc/group- && mv /etc/group- /etc/group"
+runcmd chroot ${root} /bin/sh -c "LC_ALL=C sort /etc/gshadow > /etc/gshadow- && mv /etc/gshadow- /etc/gschadow"

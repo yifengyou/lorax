@@ -1,0 +1,10 @@
+#!/bin/sh -e
+# This is the expected entry point for Cockpit CI; will be called without
+# arguments but with an appropriate $TEST_OS, and optionally $TEST_SCENARIO
+
+if [ "$TEST_SCENARIO" != "osbuild-composer" ]; then
+    echo "$TEST_SCENARIO no longer supported by lorax"
+    exit 1
+fi
+make vm
+test/check-lorax TestLorax

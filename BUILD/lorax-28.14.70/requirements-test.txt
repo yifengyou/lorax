@@ -1,4 +1,0 @@
-file-magic
-mock
-nose
-rpmfluff
